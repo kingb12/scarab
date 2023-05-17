@@ -30,6 +30,7 @@
 #define __DCACHE_STAGE_H__
 
 #include "libs/cache_lib.h"
+#include "libs/hash_lib.h"
 #include "stage_data.h"
 
 /**************************************************************************************/
@@ -46,6 +47,8 @@ typedef struct Dcache_Stage_struct {
   Stage_Data sd; /* stage interface data */
 
   Cache  dcache;      /* the data cache */
+  Cache  fa_dcache;      /* the fully associative data cache to track conflict misses */
+  Hash_Table compulsory_table; /* the tracker for compulsory misses */
   Ports* ports;       /* read and write ports to the data cache (per bank) */
   Cache  pref_dcache; /* prefetcher cache for data cache */
 
@@ -99,6 +102,7 @@ void wp_process_dcache_fill(Dcache_Data* line, Mem_Req* req);
 Flag dcache_fill_line(Mem_Req*);
 void update_iso_miss(Op*);
 Flag do_oracle_dcache_access(Op*, Addr*);
+void handle_3c_counts(Op*, Addr);
 
 /**************************************************************************************/
 
