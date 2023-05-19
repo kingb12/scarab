@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="scarab" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="--frontend memtrace --cbp_trace_r0=$TRACE_DIR/trace/drmemtrace.deepsjeng.553743.6815.trace.gz --memtrace_modules_log=$TRACE_DIR/raw/ --fetch_off_path_ops=0 --inst_limit 100000000" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="scarab" TARGET_NAME="scarab" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="scarab" RUN_TARGET_NAME="scarab">
+    <envs>
+      <env name="TRACE_DIR" value="/data/users/scarab/apr22/cse220_traces/drmemtrace.deepsjeng.553743.1618.dir" />
+      <env name="PIN_ROOT" value="$USER_HOME$/pinplay-drdebug-3.5-pin-3.5-97503-gac534ca30-gcc-linux" />
+      <env name="SCARAB_ENABLE_MEMTRACE" value="1" />
+    </envs>
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>
