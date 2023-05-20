@@ -64,6 +64,7 @@
 /* Global Variables */
 
 Dcache_Stage* dc = NULL;
+FILE* threeCsLogFile = NULL;
 
 /**************************************************************************************/
 /* set_dcache_stage: */
@@ -94,6 +95,7 @@ void init_dcache_stage(uns8 proc_id, const char* name) {
   /* initialize the cache structure */
   init_cache(&dc->dcache, "DCACHE", DCACHE_SIZE, DCACHE_ASSOC, DCACHE_LINE_SIZE,
              sizeof(Dcache_Data), DCACHE_REPL);
+  threeCsLogFile = fopen("threeCsLogs2.txt", "a");
 
   /* (nilay) Initialize (fully associative) miss cache of size
    * VICTIM_CACHE_NUM_LINES. If it's 0, disable the victim cache. */
@@ -193,6 +195,11 @@ void update_dcache_stage(Stage_Data* src_sd) {
   ASSERT(dc->proc_id, src_sd->max_op_count == dc->sd.max_op_count);
   for(ii = 0; ii < src_sd->max_op_count; ii++) {
     Op* op    = src_sd->ops[ii];
+      if (op->op_num == 12777) {
+          fprintf(threeCsLogFile, "found op");
+          fprintf(threeCsLogFile, "found op: {\"mem_type\":%d, \"op_type\": %d, \"num\": %d, \"off_path\": %d}\n",
+                  op->table_info->mem_type, op->table_info->op_type, (int) op->op_num, op->off_path);
+      }
     Op* dc_op = dc->sd.ops[ii];
 
     Flag stall_dc_op = dc_op &&
@@ -203,6 +210,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
       dc->sd.ops[ii] = NULL;
       dc->sd.op_count--;
       ASSERT(dc->proc_id, dc->sd.op_count >= 0);
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "unless the op stalled getting a dcache port, it's gone\n");
+        }
     }
 
     if(op && cycle_count < op->rdy_cycle) {
@@ -213,37 +223,61 @@ void update_dcache_stage(Stage_Data* src_sd) {
       src_sd->op_count--;
       ASSERT(dc->proc_id, src_sd->op_count >= 0);
       op = NULL;
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "op just got told to replay this cycle (clobber it)\n");
+        }
     }
 
-    if(dc->sd.ops[ii])
-      op = dc->sd.ops[ii];
-    else if(!op)
-      continue;
+    if(dc->sd.ops[ii]) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "op being overwritten!\n");
+        }
+        op = dc->sd.ops[ii];
+    }
+    else if(!op) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "op missing\n");
+        }
+        continue;
+    }
     else if(cycle_count < op->exec_cycle &&
-            !(DCACHE_CYCLES == 0 && cycle_count + 1 == op->exec_cycle))
-      /* this is a little screwy --- if the addr gen time is
-             more than one cycle, then the op won't get cleared out
-             of the exec stage, thus making it block the functional
-             unit (not for the henry mem system, which handles agen
-             itself) */
-      /* the DCACHE_CYCLES == 0 check is to make a address + 0
-         cycle cache.  This stage will grab the op out of exec a
-         cycle before normal, so the wake up happens in the same
-         cycle as execute */
-      continue;
+            !(DCACHE_CYCLES == 0 && cycle_count + 1 == op->exec_cycle)) {
+        /* this is a little screwy --- if the addr gen time is
+               more than one cycle, then the op won't get cleared out
+               of the exec stage, thus making it block the functional
+               unit (not for the henry mem system, which handles agen
+               itself) */
+        /* the DCACHE_CYCLES == 0 check is to make a address + 0
+           cycle cache.  This stage will grab the op out of exec a
+           cycle before normal, so the wake up happens in the same
+           cycle as execute */
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "this is a little screwy --- if the addr gen time is...\n");
+        }
+        continue;
+    }
     else if(op->table_info->mem_type == NOT_MEM) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "not memory?\n");
+        }
       /* just squish non-memory ops */
       src_sd->ops[ii] = NULL;
       src_sd->op_count--;
       ASSERT(dc->proc_id, src_sd->op_count >= 0);
       continue;
     } else if(op->table_info->mem_type == MEM_PF && !ENABLE_SWPRF) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "!ENABLE_SWPRF\n");
+        }
       op->done_cycle  = cycle_count + DCACHE_CYCLES;
       op->state       = OS_SCHEDULED;
       src_sd->ops[ii] = NULL;
       src_sd->op_count--;
       continue;
     } else {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "if the op is valid, move it into the dcache stage\n");
+        }
       /* if the op is valid, move it into the dcache stage */
       dc->sd.ops[ii] = op;
       dc->sd.op_count++;
@@ -278,8 +312,15 @@ void update_dcache_stage(Stage_Data* src_sd) {
     ASSERT(dc->proc_id, oldest_op_num < MAX_CTR);
 
     op = dc->sd.ops[oldest_index];
+      if (op->op_num == 12777) {
+          fprintf(threeCsLogFile, "found op (phase 2): {\"mem_type\":%d, \"op_type\": %d, \"num\": %d}\n",
+                  op->table_info->mem_type, op->table_info->op_type, (int) op->op_num);
+      }
 
     if(op->replay && op->exec_cycle == MAX_CTR) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "the op is replaying, squish it\n");
+        }
       // the op is replaying, squish it
       dc->sd.ops[oldest_index] = NULL;
       dc->sd.op_count--;
@@ -299,26 +340,45 @@ void update_dcache_stage(Stage_Data* src_sd) {
                            (op->table_info->mem_type != MEM_ST &&
                             !get_read_port(&dc->ports[bank])))) {
       op->state = OS_WAIT_DCACHE;
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "OS_WAIT_DCACHE\n");
+        }
       continue;
     } else {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "OS_SCHEDULED\n");
+        }
       op->state = OS_SCHEDULED;  // memory ops are marked as scheduled so that
                                  // they can be removed from the node->rdy_list
     }
 
     // ideal l2 l1 prefetcher bring l1 data immediately
-    if(IDEAL_L2_L1_PREFETCHER)
-      ideal_l2l1_prefetcher(op);
+    if(IDEAL_L2_L1_PREFETCHER) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "IDEAL_L2_L1_PREFETCHER\n");
+        }
+        ideal_l2l1_prefetcher(op);
+    }
 
     /* now access the dcache with it */
 
     line = (Dcache_Data*)cache_access(&dc->dcache, op->oracle_info.va,
                                       &line_addr, TRUE);
+      if (op->op_num == 12777) {
+          if (line) {
+              fprintf(threeCsLogFile, "line from cache access: addr=%d, dirty=%d, read_count=%d, write_count=%d, prefetch=%d \n",
+                      (int) line_addr, line->dirty, line->read_count[0], line->write_count[0], line->prefetch);
+          } else {
+            fprintf(threeCsLogFile, "no line!");
+          }
+      }
 
     /* Check to see if it's a cache hit, and if not, check the victim-cache */
     if(VICTIM_CACHE_NUM_LINES > 0) {
       if(!line) {
         victim_cache_line = (Dcache_Data*)cache_access(
           &dc->victim_cache, op->oracle_info.va, &line_addr, TRUE);
+
 
         if(victim_cache_line) {
           /* Victim cache hit. This means that at some point, the requested line
@@ -327,6 +387,11 @@ void update_dcache_stage(Stage_Data* src_sd) {
            * whatever it evicts in main memory
            */
           Addr block_addr, victim_line_addr;
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "line from victim cache access: addr=%d, dirty=%d, read_count=%d, write_count=%d, prefetch=%d \n",
+                        (int) line_addr, victim_cache_line->dirty, victim_cache_line->read_count[0],
+                        victim_cache_line->write_count[0], victim_cache_line->prefetch);
+            }
 
           /* Insert line into the dcache, possibly inserting the evicted value
            * into the victim cache if it exists. Then log the stat for tracking,
@@ -335,13 +400,25 @@ void update_dcache_stage(Stage_Data* src_sd) {
           cache_insert_with_victim(&dc->dcache, &dc->victim_cache, dc->proc_id,
                                    line_addr, &block_addr, &victim_line_addr);
           STAT_EVENT(op->proc_id, VICTIM_CACHE_HIT);
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "{\"miss_type\": \"victim_hit\", \"mem_type\":%d, \"op_type\": %d, \"num\": %d}\n",
+                    op->table_info->mem_type, op->table_info->op_type, (int) op->op_num);
+        }
           line = victim_cache_line;
         } else {
           /* Victim cache miss. All we can do here is log the stat, and then
            * later when the dcache is loading the missed value, we use
            * `cache_insert_with_victim` instead of `cache_insert`.
            */
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "victim cache miss\n");
+            }
           STAT_EVENT(op->proc_id, VICTIM_CACHE_MISS);
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile,
+                        "{\"miss_type\": \"victim_miss\", \"mem_type\":%d, \"op_type\": %d, \"num\": %d}\n",
+                        op->table_info->mem_type, op->table_info->op_type, (int) op->op_num);
+            }
         }
       }
     }
@@ -353,6 +430,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
        inserted, which fixes it.
      */
     if(line) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "inserting into fa_cache\n");
+        }
       Addr fa_line_addr, fa_repl_line_addr;
       cache_insert(&dc->fa_dcache, dc->proc_id, line_addr, &fa_line_addr,
                    &fa_repl_line_addr);
@@ -361,12 +441,23 @@ void update_dcache_stage(Stage_Data* src_sd) {
     op->dcache_cycle = cycle_count;
     dc->idle_cycle   = MAX2(dc->idle_cycle, cycle_count + DCACHE_CYCLES);
 
-    if(op->table_info->mem_type == MEM_ST)
-      STAT_EVENT(op->proc_id, POWER_DCACHE_WRITE_ACCESS);
-    else
-      STAT_EVENT(op->proc_id, POWER_DCACHE_READ_ACCESS);
+    if(op->table_info->mem_type == MEM_ST) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "POWER_DCACHE_WRITE_ACCESS\n");
+        }
+        STAT_EVENT(op->proc_id, POWER_DCACHE_WRITE_ACCESS);
+    }
+    else {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "POWER_DCACHE_READ_ACCESS\n");
+        }
+        STAT_EVENT(op->proc_id, POWER_DCACHE_READ_ACCESS);
+    }
 
     if(DC_PREF_CACHE_ENABLE && !line) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "if the data hits dc_pref_cache then\n");
+        }
       line = dc_pref_cache_access(op);  // if the data hits dc_pref_cache then
                                         // insert to the dcache immediately
     }
@@ -386,7 +477,10 @@ void update_dcache_stage(Stage_Data* src_sd) {
         op->wake_cycle = op->done_cycle;
         wake_up_ops(op, REG_DATA_DEP, model->wake_hook);
       }
-    } else if(line) {          // data cache hit
+    } else if(line) {
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "data cache hit if framework is on use new prefetcher.\n");
+        }// data cache hit
       if(PREF_FRAMEWORK_ON &&  // if framework is on use new prefetcher.
                                // otherwise old one
          (PREF_UPDATE_ON_WRONGPATH || !op->off_path)) {
@@ -439,7 +533,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
         wake_up_ops(op, REG_DATA_DEP, model->wake_hook);
       }
     } else {  // data cache miss
-
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "data cache missr.\n");
+        }
       if(op->table_info->mem_type == MEM_ST)
         STAT_EVENT(op->proc_id, POWER_DCACHE_WRITE_MISS);
       else
@@ -464,11 +560,17 @@ void update_dcache_stage(Stage_Data* src_sd) {
           op->wake_cycle = cycle_count + DCACHE_CYCLES +
                            op->inst_info->extra_ld_latency;
           wake_up_ops(op, REG_DATA_DEP, model->wake_hook);
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "scan the store forwarding buffer \n");
+            }
         } else if(((model->mem == MODEL_MEM) &&
                    new_mem_req(
                      MRT_DFETCH, dc->proc_id, line_addr, DCACHE_LINE_SIZE,
                      DCACHE_CYCLES - 1 + op->inst_info->extra_ld_latency, op,
                      dcache_fill_line, op->unique_num, 0))) {
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "new mem request in loads (571) \n");
+            }
           if(PREF_UPDATE_ON_WRONGPATH || !op->off_path) {
             pref_dl0_miss(line_addr, op->inst_info->addr);
           }
@@ -500,6 +602,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
           }
 
           if(!op->off_path) {
+              if (op->op_num == 12777) {
+                  fprintf(threeCsLogFile, "handling counts! (loads) \n");
+              }
             handle_3c_counts(op, line_addr);
             STAT_EVENT(op->proc_id, DCACHE_MISS);
             STAT_EVENT(op->proc_id, DCACHE_MISS_ONPATH);
@@ -516,6 +621,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
         } else {
           op->state = OS_WAIT_MEM;  // go into this state if no miss buffer is
                                     // available
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "go into this state if no miss buffer is available.\n");
+            }
           cmp_model.node_stage[dc->proc_id].mem_blocked = TRUE;
           mem->uncores[dc->proc_id].mem_block_start     = freq_cycle_count(
             FREQ_DOMAIN_L1);
@@ -524,11 +632,16 @@ void update_dcache_stage(Stage_Data* src_sd) {
       } else if(op->table_info->mem_type == MEM_PF ||
                 op->table_info->mem_type == MEM_WH) {
         // prefetches don't scan the store buffer
-
+          if (op->op_num == 12777) {
+              fprintf(threeCsLogFile, "prefetches don't scan the store buffer.\n");
+          }
         if(((model->mem == MODEL_MEM) &&
             new_mem_req(MRT_DPRF, dc->proc_id, line_addr, DCACHE_LINE_SIZE,
                         DCACHE_CYCLES - 1 + op->inst_info->extra_ld_latency, op,
                         dcache_fill_line, op->unique_num, 0))) {
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "(model->mem == MODEL_MEM) &&            new_mem_req(MRT_DPRF, dc->proc_id, line_addr, DCACHE_LINE_SIZE,                        DCACHE_CYCLES - 1 + op->inst_info->extra_ld_latency, op,                        dcache_fill_line, op->unique_num, 0))).");
+            }
           if(ONE_MORE_CACHE_LINE_ENABLE) {
             Addr         one_more_addr;
             Addr         extra_line_addr;
@@ -556,6 +669,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
           }
 
           if(!op->off_path) {
+              if (op->op_num == 12777) {
+                  fprintf(threeCsLogFile, "handling counts! (pre-fetch) \n");
+              }
             handle_3c_counts(op, line_addr);
             STAT_EVENT(op->proc_id, DCACHE_MISS);
             STAT_EVENT(op->proc_id, DCACHE_MISS_ONPATH);
@@ -574,6 +690,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
             op->state = OS_SCHEDULED;
           }
         } else {
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "go into this state if no miss buffer is (pref) \n");
+            }
           op->state = OS_WAIT_MEM;  // go into this state if no miss buffer is
                                     // available
           cmp_model.node_stage[dc->proc_id].mem_blocked = TRUE;
@@ -615,6 +734,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
           }
 
           if(!op->off_path) {
+              if (op->op_num == 12777) {
+                  fprintf(threeCsLogFile, "handling counts! (stores) \n");
+              }
             handle_3c_counts(op, line_addr);
             STAT_EVENT(op->proc_id, DCACHE_MISS);
             STAT_EVENT(op->proc_id, DCACHE_MISS_ONPATH);
@@ -633,6 +755,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
             op->state = OS_SCHEDULED;
           }
         } else {
+            if (op->op_num == 12777) {
+                fprintf(threeCsLogFile, "go into OS_WAIT_MEM (store) \n");
+            }
           op->state                                     = OS_WAIT_MEM;
           cmp_model.node_stage[dc->proc_id].mem_blocked = TRUE;
           mem->uncores[dc->proc_id].mem_block_start     = freq_cycle_count(
@@ -649,6 +774,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
              "dl0 miss : line_addr :%d op_count %lld  type :%d\n",
              (int)line_addr, op->op_num, (int)op->table_info->mem_type);
       stream_dl0_miss(line_addr);
+        if (op->op_num == 12777) {
+            fprintf(threeCsLogFile, "dl0 miss : line_addr \n");
+        }
     }
   }
   // }}}
@@ -970,12 +1098,24 @@ void handle_3c_counts(Op* op, Addr line_addr) {
   // now check if it's a miss
   if(!comp_hit) {  // compulsory miss
     STAT_EVENT(op->proc_id, DCACHE_COMPULSORY_MISS);
+    if (op->op_num == 12777) {
+        fprintf(threeCsLogFile, "{\"miss_type\": \"compulsory\", \"mem_type\":%d, \"op_type\": %d, \"num\": %d}\n",
+                op->table_info->mem_type, op->table_info->op_type, (int) op->op_num);
+    }
     Flag new_entry;
     hash_table_access_create(&dc->compulsory_table, line_addr, &new_entry);
   } else if(fa_line) {  // conflict miss
     STAT_EVENT(op->proc_id, DCACHE_CONFLICT_MISS);
+      if (op->op_num == 12777) {
+          fprintf(threeCsLogFile, "{\"miss_type\": \"conflict\", \"mem_type\":%d, \"op_type\": %d, \"num\": %d}\n",
+                  op->table_info->mem_type, op->table_info->op_type, (int) op->op_num);
+      }
   } else {  // capacity miss
     STAT_EVENT(op->proc_id, DCACHE_CAPACITY_MISS);
+      if (op->op_num == 12777) {
+          fprintf(threeCsLogFile, "{\"miss_type\": \"capacity\", \"mem_type\":%d, \"op_type\": %d, \"num\": %d}\n",
+              op->table_info->mem_type, op->table_info->op_type, (int) op->op_num);
+      }
   }
   return;
 }
